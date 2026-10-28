@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.print.PrintAttributes;
+import android.util.Base64;
 import android.print.PrintDocumentAdapter;
 import android.print.PrintManager;
 import android.webkit.JavascriptInterface;
@@ -25,9 +26,11 @@ public class MainActivity extends Activity {
 
     private static final int REQ_SAVE_BACKUP = 1;
     private static final int REQ_OPEN_BACKUP = 2;
+    private static final int REQ_SAVE_PDF = 3;
 
     private WebView web;
     private String pendingBackup;
+    private byte[] pendingPdf;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,6 +71,25 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** Receives a finished PDF (base64) from the page and asks where to save it (Google Drive shows up there). */
+        @JavascriptInterface
+        public void savePdfData(final String base64, final String fileName) {
+            try {
+                pendingPdf = Base64.decode(base64, Base64.DEFAULT);
+            } catch (Exception e) {
+                pendingPdf = null;
+                js("window.onPdfResult && window.onPdfResult(false)");
+                return;
+            }
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("application/pdf");
+                i.putExtra(Intent.EXTRA_TITLE, fileName);
+                startActivityForResult(i, REQ_SAVE_PDF);
+            });
+        }
+
         /** Opens the system "save as" screen (Google Drive shows up there) for a backup file. */
         @JavascriptInterface
         public void saveBackup(final String json, final String fileName) {
@@ -98,7 +120,19 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         Uri uri = (resultCode == RESULT_OK && data != null) ? data.getData() : null;
 
-        if (requestCode == REQ_SAVE_BACKUP) {
+        if (requestCode == REQ_SAVE_PDF) {
+            boolean ok = false;
+            if (uri != null && pendingPdf != null) {
+                try (OutputStream os = getContentResolver().openOutputStream(uri)) {
+                    os.write(pendingPdf);
+                    ok = true;
+                } catch (Exception e) {
+                    ok = false;
+                }
+            }
+            pendingPdf = null;
+            js("window.onPdfResult && window.onPdfResult(" + ok + ")");
+        } else if (requestCode == REQ_SAVE_BACKUP) {
             boolean ok = false;
             if (uri != null && pendingBackup != null) {
                 try (OutputStream os = getContentResolver().openOutputStream(uri)) {

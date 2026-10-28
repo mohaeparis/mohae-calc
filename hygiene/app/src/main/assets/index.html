@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>모해 위생 기록</title>
 <link rel="stylesheet" href="fonts/fonts.css">
+<script src="lib/html2canvas.min.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
 <style>
 /* Layout: sticky top bar (date + who) → two views: "오늘 체크" big tap rows, "월별 기록표" paper-form replica */
 :root{
@@ -188,6 +190,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .top .wrap{gap:8px}
 }
 #printarea{display:none}
+.cap{position:fixed;left:-20000px;top:0;width:1123px}
+.cap .paper{width:1123px;height:794px;min-height:0;box-shadow:none;padding:22px 28px}
 @page{size:A4 landscape;margin:7mm}
 @media print{
   body{background:#fff}
@@ -538,9 +542,17 @@ function renderMonth(){
   $("mn").onclick=()=>{const n=new Date(mCur.getFullYear(),mCur.getMonth()+1,1,12);if(!isFuture(n)){mCur=n;render()}};
   const msg=document.createElement("p");msg.className="msg";msg.id="pdfmsg";
   msg.textContent="칸을 눌러 바로 고칠 수도 있어요. 지금 선택된 이니셜로 기록돼요.";v.appendChild(msg);
-  $("pdf").onclick=()=>{preparePrint(mCur);S.exported=S.exported||{};S.exported[mk(mCur)]=true;save();if(window.Android?.savePdf){window.Android.savePdf(`MOHAE_HACCP_${mk(mCur)}`)}
-    else{msg.textContent="여기 미리보기에서는 PDF 저장이 안 돼요. 앱으로 만들면 이 버튼 한 번에 이 달 기록표 전체가 PDF로 저장돼요."}};
-  if(window.Android)msg.textContent="PDF로 저장 → 프린터를 'PDF로 저장'으로 → 저장 위치에서 Google Drive를 고르면 돼요.";
+  const canPdf=!!(window.Android?.savePdfData&&window.jspdf&&window.html2canvas);
+  $("pdf").onclick=async()=>{
+    if(!canPdf){msg.textContent="여기 미리보기에서는 PDF 저장이 안 돼요. 앱에서는 이 버튼 한 번에 이 달 기록표 전체가 PDF로 저장돼요.";return}
+    const btn=$("pdf");btn.disabled=true;btn.textContent="PDF 만드는 중…";msg.textContent="11장을 만드는 중이에요. 10초 정도 걸려요.";
+    try{const b64=await buildPdf(mCur);
+      window.Android.savePdfData(b64,`MOHAE_HACCP_${mk(mCur)}.pdf`);
+      S.exported=S.exported||{};S.exported[mk(mCur)]=true;save();
+      msg.textContent="저장 위치를 고르세요. Google Drive → 모해 폴더를 고르면 드라이브에 올라가요.";
+    }catch(e){msg.textContent="PDF를 만들지 못했어요. 앱을 껐다 켠 뒤 다시 눌러주세요. ("+(e&&e.message||e)+")"}
+    btn.disabled=false;btn.textContent="PDF로 저장"};
+  if(canPdf)msg.textContent="칸을 눌러 바로 고칠 수도 있어요. PDF로 저장을 누르면 이 달 기록표 11장이 한 파일로 만들어져요.";
 
   const wrap=document.createElement("div");wrap.className="paperwrap";
   const [kind,id]=sheet.split(":");
@@ -555,6 +567,26 @@ function preparePrint(m){
   pa.appendChild(paperRec(m));pa.appendChild(paperOil(m));
   return pa.children.length}
 window.preparePrint=preparePrint;
+/* PDF made inside the page: each sheet → image → A4 landscape page */
+async function buildPdf(m){
+  const cap=document.createElement("div");cap.className="cap";document.body.appendChild(cap);
+  S.units.forEach(u=>cap.appendChild(paperTemp(u,m)));ZONES.forEach(z=>cap.appendChild(paperZone(z,m)));
+  cap.appendChild(paperRec(m));cap.appendChild(paperOil(m));
+  try{
+    if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+    const {jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:"a4",compress:true});
+    const pages=[...cap.children];
+    for(let k=0;k<pages.length;k++){
+      const c=await window.html2canvas(pages[k],{scale:2,backgroundColor:"#ffffff",logging:false});
+      if(k>0)pdf.addPage("a4","landscape");
+      pdf.addImage(c.toDataURL("image/jpeg",0.9),"JPEG",0,0,297,210,undefined,"FAST");
+    }
+    pdf.setProperties({title:`MOHAE HACCP ${mk(m)}`,author:"MOHAE"});
+    return pdf.output("datauristring").split(",")[1];
+  }finally{cap.remove()}
+}
+window.buildPdf=buildPdf;
+window.onPdfResult=ok=>{const e=$("pdfmsg");if(e)e.textContent=ok?"✓ PDF를 저장했어요.":"저장하지 않았어요. 다시 눌러서 위치를 골라주세요."};
 function daysIn(m){return new Date(m.getFullYear(),m.getMonth()+1,0).getDate()}
 function dayHead(){let h="";for(let i=1;i<=31;i++)h+=`<th>${i}</th>`;return h}
 function paperHead(title,right,m){
