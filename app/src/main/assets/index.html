@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="모해 계산기">
+<meta name="theme-color" content="#3D4B34">
+<title>모해 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gothic+A1:wght@400;500;700;800&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+/* Layout: menu buttons on the left, live bill on the right (stacks on phone with a sticky total bar) */
+:root{
+  --bg:#F6EEE3; --surface:#FFFBF5; --fg:#26301F; --muted:#6E7564;
+  --line:#E2D6C4; --accent:#3D4B34; --accent-fg:#FAF0E6; --gold:#C5A253; --gold-ink:#8E7228; --chip:#EFE5D5; --danger:#A3412E;
+  --display:"Black Han Sans","Gothic A1",system-ui,sans-serif;
+  --body:"Gothic A1","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1B2117; --surface:#242C1F; --fg:#F3E9DA; --muted:#A9AE9C;
+  --line:#3A4532; --accent:#C5A253; --accent-fg:#1B2117; --gold-ink:#D9BB6E; --chip:#2E3828; --danger:#E07A63; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1B2117; --surface:#242C1F; --fg:#F3E9DA; --muted:#A9AE9C;
+  --line:#3A4532; --accent:#C5A253; --accent-fg:#1B2117; --gold-ink:#D9BB6E; --chip:#2E3828; --danger:#E07A63; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 120px}
+.wrap{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}
+header{grid-column:1/-1;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(30px,6vw,42px);line-height:1;margin:0}
+h1 small{display:block;font-family:var(--body);font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--gold-ink);margin-bottom:6px}
+.editBtn{border:1px solid var(--line);background:var(--surface);color:var(--fg);font:700 13px var(--body);padding:9px 14px;border-radius:999px;cursor:pointer}
+.editBtn[aria-pressed="true"]{background:var(--gold);color:#1B2117;border-color:var(--gold)}
+.editBtn:disabled{opacity:.5;cursor:default}
+.topBtns{display:flex;gap:6px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.resetBtn{border:1px solid var(--line);background:var(--surface);color:var(--danger);font:700 13px var(--body);padding:9px 14px;border-radius:999px;cursor:pointer}
+.resetBtn:disabled{opacity:.45;cursor:default}
+.resetBtn.sure{background:var(--danger);color:#fff;border-color:var(--danger)}
+.resetCancel{border:1px solid var(--line);background:var(--surface);color:var(--fg);font:700 13px var(--body);padding:9px 12px;border-radius:999px;cursor:pointer}
+@media (max-width:820px){.topBtns{justify-content:flex-start}}
+.status{font-size:12px;color:var(--muted);margin-top:6px;text-align:right}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
+.tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:700 14px var(--body);padding:9px 16px;border-radius:999px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.banner{background:var(--chip);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:14px}
+.sec{margin-bottom:22px}
+.sec h2{font-family:var(--display);font-weight:400;font-size:24px;line-height:1.1;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid var(--gold);color:var(--fg);letter-spacing:.01em}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.item{border:1px solid var(--line);background:var(--surface);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.item .tap{flex:1;text-align:left;border:0;background:transparent;color:var(--fg);padding:10px 12px;cursor:pointer;font-family:var(--body);display:flex;flex-direction:column;gap:2px;min-height:58px;transition:transform .08s}
+.item .tap:active{transform:scale(.97)}
+.item.big .tap{min-height:110px;justify-content:center;padding:16px}
+.item.big .n{font-size:20px}
+.item.big .pr{font-family:var(--display);font-size:26px;color:var(--gold-ink)}
+.sec:has(.item.big) .grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.item .ctl{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;background:var(--accent);color:var(--accent-fg)}
+.item .ctl button{height:44px;border:0;background:transparent;color:var(--accent-fg);font:800 24px var(--body);cursor:pointer;line-height:1}
+.item .ctl button:active{background:rgba(0,0,0,.15)}
+.item .ctl b{text-align:center;font-family:var(--display);font-weight:400;font-size:24px;font-variant-numeric:tabular-nums}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.seg{display:flex;background:var(--chip);border-radius:10px;padding:4px;gap:4px;margin-bottom:10px}
+.seg button{flex:1;border:0;background:transparent;color:var(--fg);font:700 14px var(--body);padding:10px 6px;border-radius:7px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.note{font-size:12px;color:var(--muted);margin:0 0 14px}
+.item .n{font-weight:700;font-size:14px;overflow-wrap:anywhere}
+.item .pr{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.item.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.badge-unused{position:absolute;top:-7px;right:-7px;min-width:22px;height:22px;border-radius:11px;background:var(--gold);color:#1B2117;font:800 12px var(--body);display:grid;place-items:center;padding:0 6px}
+
+/* edit mode */
+.ecard{border:1px dashed var(--gold);background:var(--surface);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px}
+.ecard input,.addForm input,.addForm select{width:100%;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:600 14px var(--body);padding:7px 8px;border-radius:7px}
+.ecard .row{display:flex;gap:6px;align-items:center}
+.ecard .row input{flex:1}
+.ecard .del{border:1px solid var(--line);background:transparent;color:var(--danger);font:700 12px var(--body);padding:7px 8px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.banner .del{border:1px solid var(--line);background:var(--surface);color:var(--danger);font:700 12px var(--body);padding:7px 10px;border-radius:7px;cursor:pointer}
+.banner .del.sure{background:var(--danger);color:#fff;border-color:var(--danger)}
+.ecard .del.sure{background:var(--danger);color:#fff;border-color:var(--danger)}
+.addForm{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}
+.addForm .full{grid-column:1/-1}
+.addForm label{font-size:12px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.addForm button{grid-column:1/-1;border:0;background:var(--accent);color:var(--accent-fg);font:800 14px var(--body);padding:11px;border-radius:9px;cursor:pointer}
+.addForm .err{grid-column:1/-1;color:var(--danger);font-size:12px;margin:0}
+
+/* bill */
+.bill{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.bill h3{margin:0 0 12px;font-size:15px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+.lines{display:flex;flex-direction:column;max-height:38vh;overflow:auto}
+.line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.line .nm{font-size:14px;font-weight:600;min-width:0;overflow-wrap:anywhere}
+.line .nm span{display:block;font-size:11px;color:var(--muted);font-weight:500}
+.qty{display:flex;align-items:center;gap:2px}
+.qty button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:700 16px var(--body);cursor:pointer;line-height:1}
+.qty b{min-width:20px;text-align:center;font-variant-numeric:tabular-nums}
+.line .sum{font-variant-numeric:tabular-nums;font-size:14px;min-width:62px;text-align:right}
+.empty{color:var(--muted);font-size:13px;padding:14px 0}
+.total{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 4px}
+.total span{font-weight:700}
+.total strong{font-family:var(--display);font-weight:400;font-size:32px;font-variant-numeric:tabular-nums}
+.alco{display:flex;justify-content:space-between;align-items:baseline;padding:8px 12px;border-radius:9px;background:var(--chip);margin-top:6px}
+.alco span{font-size:13px;font-weight:700;color:var(--muted)}
+.alco strong{font-size:18px;font-weight:800;color:var(--gold-ink);font-variant-numeric:tabular-nums}
+.split{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.split label{font-size:13px;font-weight:700;display:block;margin-bottom:8px}
+.ppl{display:flex;gap:6px;flex-wrap:wrap}
+.ppl button{width:40px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:700 14px var(--body);cursor:pointer}
+.ppl button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.ppl input{width:56px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:700 14px var(--body);text-align:center}
+.per{margin-top:12px;background:var(--chip);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.per .big{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.per .big strong{font-family:var(--display);font-weight:400;font-size:26px;color:var(--gold-ink);font-variant-numeric:tabular-nums}
+.per small{font-size:12px;color:var(--muted)}
+.clear{border:0;background:none;color:var(--muted);font:600 12px var(--body);cursor:pointer;text-decoration:underline;padding:4px}
+.confirm{display:flex;gap:6px;align-items:center;font-size:12px}
+.confirm button{border:1px solid var(--line);background:var(--bg);color:var(--fg);font:700 12px var(--body);border-radius:7px;padding:4px 10px;cursor:pointer}
+.confirm .yes{background:var(--danger);color:#fff;border-color:var(--danger)}
+
+.bar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--accent);color:var(--accent-fg);
+  padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  align-items:center;justify-content:space-between;gap:12px;border:0;width:100%;font-family:var(--body);cursor:pointer;text-align:left}
+.bar .t{font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums}
+.bar .s{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+@media (max-width:820px){
+  .wrap{grid-template-columns:minmax(0,1fr)}
+  .bill{position:static}
+  .lines{max-height:none}
+  .bar{display:flex}
+  .status{text-align:left}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1><small>MOHAE · 모해</small>메뉴 계산기</h1>
+    <div>
+      <div class="topBtns"><span id="resetWrap"></span><button type="button" class="editBtn" id="editBtn" aria-pressed="false">메뉴 편집</button></div>
+      <div class="status" id="status"></div>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div id="panel"></div>
+  </main>
+
+  <aside class="bill" id="bill" aria-label="계산서">
+    <h3>주문 내역 <span id="clearWrap"></span></h3>
+    <div class="lines" id="lines"></div>
+    <div class="total"><span>총합</span><strong id="total">0,00 €</strong></div>
+    <div class="alco"><span>그중 주류</span><strong id="alco">0,00 €</strong></div>
+    <div class="split">
+      <label for="pplCustom">나누기 (인원) · 50센트 단위</label>
+      <div class="ppl" id="ppl"></div>
+      <div class="per" id="per"></div>
+    </div>
+  </aside>
+</div>
+
+<button class="bar" id="bar" type="button" aria-label="계산서로 이동">
+  <span class="t" id="barTotal">0,00 €</span>
+  <span class="s" id="barPer"></span>
+</button>
+
+<script>
+const CATS=[["lunch","점심"],["entree","전식"],["plat","본식"],["signature","시그니처"],["drink","음료"],["dessert","디저트"]];
+/* Built-in menu (Carte FR, Oct 2026). Used until the saved menu loads, and as the seed. */
+const LUNCH_DEFAULT=[
+["lunch","점심 포뮬","단품",14],["lunch","점심 포뮬","세트 (+옵션 1개)",15.5],["lunch","점심 포뮬","추가 (전식·음료·후식)",3],
+];
+const lunchItems=()=>LUNCH_DEFAULT.map(([cat,group,name,price],i)=>({id:"LS"+(i+1),cat,group,name,price,order:-1000+i*10}));
+const ALCO_GROUPS=["잔술","소주 칵테일","병","와인"];
+const isAlco=it=>!!it&&(ALCO_GROUPS.includes(it.group)||/술|와인|맥주|주류|wine|vin/i.test(it.group||""));
+const DEFAULT=[
+["entree","전식","군만두",10],["entree","전식","깐풍만두",12],["entree","전식","비빔만두",12],["entree","전식","김치전",15],["entree","전식","해물파전",15],["entree","전식","반반전",16],["entree","전식","떡볶이",14],["entree","전식","잡채",14],["entree","전식","김치잡채",15],["entree","전식","양념치킨 8P",16],["entree","전식","허니갈릭치킨 8P",16],["entree","전식","크림마요치킨 8P",16],["entree","전식","육회",18],["entree","전식","치즈 추가",2],
+["plat","본식","김치볶음밥",18],["plat","본식","소불고기",19],["plat","본식","제육볶음",19],["plat","본식","만둣국",16],["plat","본식","뚝불",19],["plat","본식","김치찌개",19],["plat","본식","순두부찌개",19],
+["signature","모해 한상","서울 불고기",39],["signature","모해 한상","서울 샤브샤브",40],["signature","모해 한상","치즈 닭갈비",39],["signature","모해 한상","삼겹살",39],
+["drink","물","Evian 50cl",3],["drink","물","Evian 1L",5],["drink","물","San Pellegrino 50cl",3],["drink","물","San Pellegrino 1L",5],
+["drink","차","둥굴레차",3],["drink","차","녹차",3],["drink","차","자스민차",3],["drink","차","우롱차",3],["drink","차","유자차",5],["drink","차","매실차",5],["drink","차","생강차",5],["drink","차","오미자차",5],
+["drink","커피","에스프레소",3],["drink","커피","알롱제",3],["drink","커피","아이스 아메리카노",4],["drink","커피","라떼",4],["drink","커피","카푸치노",4],
+["drink","탄산 · 주스","코카콜라",3.5],["drink","탄산 · 주스","코카제로",3.5],["drink","탄산 · 주스","오랑지나",3.5],["drink","탄산 · 주스","스프라이트",3.5],["drink","탄산 · 주스","아이스티 33cl",3.5],["drink","탄산 · 주스","오렌지 주스",4],["drink","탄산 · 주스","사과 주스",4],
+["drink","한국 음료","식혜",4],["drink","한국 음료","코코팜",4],["drink","한국 음료","갈아만든 배",4],["drink","한국 음료","밀키스",4],["drink","한국 음료","알로에 50cl",6],
+["drink","에이드","유자 에이드",7],["drink","에이드","매실 에이드",7],["drink","에이드","생강 에이드",7],["drink","에이드","오미자 에이드",7],["drink","에이드","블루 레몬 에이드",7],
+["drink","잔술","소주 잔",4],["drink","잔술","복분자 잔",4.5],["drink","잔술","화요 잔",7],["drink","잔술","소맥",5],["drink","잔술","막걸리 잔",5],["drink","잔술","아사히 25cl",4.5],["drink","잔술","아사히 50cl",8],
+["drink","소주 칵테일","소유",8],["drink","소주 칵테일","소복",8],["drink","소주 칵테일","소미자",8],["drink","소주 칵테일","블루 소키스",8],
+["drink","병","참이슬",17],["drink","병","복숭아 소주",17],["drink","병","청포도 소주",17],["drink","병","새로 살구",17],["drink","병","새로 리치",17],["drink","병","카스 33cl",6],["drink","병","복분자 병",18],["drink","병","백세주 병",19],["drink","병","막걸리 병",15],
+["dessert","후식","호떡&아이스크림",9],["dessert","후식","아이스크림 1스쿱",3],["dessert","후식","모찌 1개",3],["dessert","후식","찹쌀떡",7],
+];
+const BOWLS=[{id:"m015",cat:"plat",group:"본식",name:"비빔밥",price:19,order:150},{id:"m021",cat:"plat",group:"본식",name:"덮밥",price:18,order:155}];
+const WINES=[["w01","와인 잔 15cl",5],["w02","레드 · Côtes-du-Rhône",23],["w03","레드 · Bordeaux",21],["w04","화이트 · Chardonnay",22],["w05","화이트 · Sauvignon",19],["w06","로제 · Côtes-de-Provence",24]]
+  .map(([id,name,price],i)=>({id,cat:"drink",group:"와인",name,price,order:901+i}));
+const defaultItems=()=>lunchItems().concat(DEFAULT.map(([cat,group,name,price],i)=>{const n=i<14?i+1:i+12;return {id:"m"+String(n).padStart(3,"0"),cat,group,name,price,order:n*10}}),BOWLS,WINES).sort((a,b)=>a.order-b.order);
+
+function loadMenu(){try{let m=JSON.parse(localStorage.getItem("mohae-menu")||"null");
+  if(Array.isArray(m)&&m.length){
+    let v=0;try{v=+localStorage.getItem("mohae-menu-v")||0}catch(e){}
+    if(v<3){const rest=m.filter(x=>x.cat!=="lunch");try{localStorage.setItem("mohae-menu-v","3");localStorage.setItem("mohae-menu",JSON.stringify(lunchItems().concat(rest)))}catch(e){}return lunchItems().concat(rest)}
+    if(v<4){const drop=new Set(["m016","m017","m018","m019","m020","m022","m023","m024","m025"]);
+      let n=m.filter(x=>!drop.has(x.id)&&x.id!=="m015"&&x.id!=="m021").concat(BOWLS);
+      try{localStorage.setItem("mohae-menu-v","4");localStorage.setItem("mohae-menu",JSON.stringify(n))}catch(e){}return n}
+    if(v<5){const c=m.find(x=>x.id==="m087");if(c&&c.name==="한국 맥주 33cl")c.name="카스 33cl";
+      try{localStorage.setItem("mohae-menu-v","5");localStorage.setItem("mohae-menu",JSON.stringify(m))}catch(e){}}
+    if(v<6){if(!m.some(x=>x.id==="w01"))m=m.concat(WINES);
+      try{localStorage.setItem("mohae-menu-v","6");localStorage.setItem("mohae-menu",JSON.stringify(m))}catch(e){}}
+    return m}}catch(e){}
+  try{localStorage.setItem("mohae-menu-v","6")}catch(e){}return defaultItems()}
+let menu=loadMenu();
+const live=true;
+let state={tab:"lunch",people:2,cart:{},order:[]};
+try{const s=JSON.parse(localStorage.getItem("mohae-calc2")||"null");if(s&&s.cart)state=Object.assign(state,s);if(!CATS.some(c=>c[0]===state.tab))state.tab="lunch";
+  for(const k of Object.keys(state.cart))if(k.includes("|")||/^L\d{3}$/.test(k)){delete state.cart[k]}
+  state.order=state.order.filter(k=>state.cart[k])}catch(e){}
+let sureReset=false, edit=false, confirming=false, sureDel=null, pending=false;
+
+const eur=n=>new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"}).format(n);
+const short=n=>(Number.isInteger(n)?n:+n.toFixed(2))+"€";
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+function save(){try{localStorage.setItem("mohae-calc2",JSON.stringify(state))}catch(e){}}
+function setStatus(t){$("status").textContent=t}
+
+/* ---------- cart ---------- */
+function add(k,name,price){
+  if(!state.cart[k]){state.cart[k]={name,price,qty:0};state.order.push(k)}
+  state.cart[k].qty++;save();render();
+}
+function change(k,d){const l=state.cart[k];if(!l)return;l.qty+=d;
+  if(l.qty<=0){delete state.cart[k];state.order=state.order.filter(x=>x!==k)}save();render()}
+function syncCart(){ // follow edited names/prices
+  for(const k of state.order){const it=menu.find(m=>m.id===k);if(it){state.cart[k].name=it.name;state.cart[k].price=it.price;state.cart[k].alco=isAlco(it)}}
+}
+
+/* ---------- split into 50-cent steps ---------- */
+function split(total,n){
+  const cents=Math.round(total*100);
+  const base=Math.floor(cents/n/50)*50;          // everyone pays at least this
+  let left=cents-base*n;
+  const ups=Math.floor(left/50);                  // this many pay +0.50
+  const odd=left-ups*50;                          // only if a price isn't a .50 step
+  return {base:base/100,ups,odd:odd/100,n};
+}
+
+/* ---------- render ---------- */
+function renderTabs(){
+  const t=$("tabs");t.innerHTML="";
+  CATS.forEach(([id,label])=>{const b=document.createElement("button");b.type="button";b.setAttribute("role","tab");
+    b.textContent=label;b.setAttribute("aria-selected",state.tab===id);
+    b.onclick=()=>{state.tab=id;sureDel=null;save();render()};t.appendChild(b)});
+}
+function groupsOf(cat){
+  const items=menu.filter(m=>m.cat===cat).sort((a,b)=>(a.order||0)-(b.order||0));
+  const g=new Map();items.forEach(it=>{if(!g.has(it.group))g.set(it.group,[]);g.get(it.group).push(it)});
+  return g;
+}
+function renderPanel(){
+  const p=$("panel");p.innerHTML="";
+  const groups=groupsOf(state.tab);
+  if(state.tab==="lunch"&&!edit){const n=document.createElement("p");n.className="note";
+    n.textContent="Lun–Ven · 공휴일 제외. 세트 = 전식·음료·후식 중 1개 포함. 그 이상은 ‘추가’를 누르세요.";p.appendChild(n)}
+  if(edit){p.appendChild(addForm(groups));
+    const r=document.createElement("div");r.className="banner";
+    r.innerHTML=sureReset?`메뉴판 전체를 처음 상태로 되돌릴까요? <button type="button" class="del sure" id="rsY">되돌리기</button> <button type="button" class="del" id="rsN">취소</button>`:`<button type="button" class="del" id="rsAsk">기본 메뉴판으로 되돌리기</button>`;
+    p.appendChild(r);
+    if(sureReset){r.querySelector("#rsY").onclick=()=>{sureReset=false;resetMenu()};r.querySelector("#rsN").onclick=()=>{sureReset=false;renderPanel()}}
+    else r.querySelector("#rsAsk").onclick=()=>{sureReset=true;renderPanel()};
+  }
+  if(!groups.size){const e=document.createElement("div");e.className="banner";
+    e.textContent=edit?"이 탭에 메뉴가 없어요. 위에서 첫 메뉴를 추가하세요.":"이 탭에 메뉴가 없어요. ‘메뉴 편집’에서 추가할 수 있어요.";p.appendChild(e)}
+  groups.forEach((items,gname)=>{
+    const s=document.createElement("section");s.className="sec";
+    s.innerHTML=`<h2>${esc(gname)}</h2>`;
+    const g=document.createElement("div");g.className="grid";
+    items.forEach(it=>g.appendChild(edit?editCard(it):itemBtn(it)));
+    s.appendChild(g);p.appendChild(s);
+  });
+}
+function itemBtn(it){
+  const key=it.id,price=it.price,name=it.name,q=state.cart[key]?.qty||0;
+  const d=document.createElement("div");d.className="item"+(q?" on":"")+(it.cat==="lunch"?" big":"");
+  const b=document.createElement("button");b.type="button";b.className="tap";
+  b.innerHTML=`<span class="n">${esc(name)}</span><span class="pr">${short(price)}</span>`;
+  b.onclick=()=>add(key,name,price);d.appendChild(b);
+  if(q){
+    const c=document.createElement("div");c.className="ctl";
+    c.innerHTML=`<button type="button" aria-label="${esc(name)} 하나 빼기">−</button><b aria-live="polite">${q}</b><button type="button" aria-label="${esc(name)} 하나 더">+</button>`;
+    const [m,p]=c.querySelectorAll("button");m.onclick=()=>change(key,-1);p.onclick=()=>add(key,name,price);
+    d.appendChild(c);
+  }
+  return d;
+}
+function editCard(it){
+  const d=document.createElement("div");d.className="ecard";
+  d.innerHTML=`<input id="n-${it.id}" aria-label="메뉴 이름" value="${esc(it.name)}">
+    <div class="row"><input id="p-${it.id}" aria-label="가격 (€)" type="number" step="0.5" min="0" inputmode="decimal" value="${it.price}">
+    <button type="button" class="del${sureDel===it.id?" sure":""}">${sureDel===it.id?"정말 삭제":"삭제"}</button></div>`;
+  const [ni,pi]=d.querySelectorAll("input");
+  ni.onchange=()=>{const v=ni.value.trim();if(v&&v!==it.name)write(it.id,{name:v})};
+  pi.onchange=()=>{const v=parseFloat(String(pi.value).replace(",","."));if(isFinite(v)&&v>=0&&v!==it.price)write(it.id,{price:v})};
+  ni.onblur=pi.onblur=flush;
+  d.querySelector(".del").onclick=()=>{if(sureDel===it.id){sureDel=null;remove(it.id)}else{sureDel=it.id;renderPanel()}};
+  return d;
+}
+function addForm(groups){
+  const f=document.createElement("form");f.className="addForm";
+  const opts=[...groups.keys()].map(g=>`<option>${esc(g)}</option>`).join("");
+  f.innerHTML=`<label class="full">그룹<select id="newGroup">${opts}<option value="__new">+ 새 그룹 만들기</option></select></label>
+    <label class="full" id="newGroupNameWrap" ${groups.size?"hidden":""}>새 그룹 이름<input id="newGroupName" placeholder="예: 겨울 메뉴"></label>
+    <label>메뉴 이름<input id="newName" placeholder="예: 떡만둣국" autocomplete="off"></label>
+    <label>가격 (€)<input id="newPrice" type="number" step="0.5" min="0" inputmode="decimal" placeholder="16"></label>
+    <p class="err" id="addErr" hidden></p>
+    <button type="submit">메뉴 추가</button>`;
+  const sel=f.querySelector("#newGroup"),wrap=f.querySelector("#newGroupNameWrap");
+  if(!groups.size)sel.value="__new";
+  sel.onchange=()=>{wrap.hidden=sel.value!=="__new"};
+  f.onsubmit=async e=>{e.preventDefault();
+    const err=f.querySelector("#addErr");err.hidden=true;
+    const group=sel.value==="__new"?f.querySelector("#newGroupName").value.trim():sel.value;
+    const name=f.querySelector("#newName").value.trim();
+    const price=parseFloat(String(f.querySelector("#newPrice").value).replace(",","."));
+    if(!group||!name||!isFinite(price)){err.textContent="그룹, 이름, 가격을 모두 채워주세요.";err.hidden=false;return}
+    const maxOrder=Math.max(0,...menu.map(m=>m.order||0));
+    menu.push({id:"u"+Date.now().toString(36),cat:state.tab,group,name,price,order:maxOrder+10});
+    if(saveMenu())setStatus("추가됨 · "+name);else{err.textContent="이 브라우저에 저장하지 못했어요. 시크릿 모드인지 확인해주세요.";err.hidden=false}
+    render();
+  };
+  return f;
+}
+function write(id,patch){
+  const it=menu.find(m=>m.id===id);if(!it)return;Object.assign(it,patch);
+  setStatus(saveMenu()?"저장됨":"저장 실패 · 시크릿 모드인지 확인해주세요");render();
+}
+function remove(id){
+  menu=menu.filter(m=>m.id!==id);setStatus(saveMenu()?"삭제됨":"저장 실패");render();
+}
+function resetMenu(){menu=defaultItems();try{localStorage.removeItem("mohae-menu")}catch(e){}setStatus("기본 메뉴판으로 되돌림");render()}
+function flush(){setTimeout(()=>{if(pending&&!$("panel").contains(document.activeElement)){pending=false;render()}},0)}
+
+function renderBill(){
+  syncCart();
+  const L=$("lines");L.innerHTML="";let total=0;
+  state.order.forEach(k=>{const l=state.cart[k];if(!l)return;total+=l.price*l.qty;
+    const d=document.createElement("div");d.className="line";
+    d.innerHTML=`<div class="nm">${esc(l.name)}<span>${short(l.price)}</span></div>
+      <div class="qty"><button type="button" aria-label="하나 빼기">−</button><b>${l.qty}</b><button type="button" aria-label="하나 더">+</button></div>
+      <div class="sum">${eur(l.price*l.qty)}</div>`;
+    const [m,p]=d.querySelectorAll(".qty button");m.onclick=()=>change(k,-1);p.onclick=()=>change(k,1);L.appendChild(d)});
+  if(!state.order.length)L.innerHTML=`<div class="empty">메뉴를 누르면 여기에 쌓여요.</div>`;
+  total=Math.round(total*100)/100;$("total").textContent=eur(total);
+  let alco=0;state.order.forEach(k=>{const l=state.cart[k];if(l&&l.alco)alco+=l.price*l.qty});
+  $("alco").textContent=eur(Math.round(alco*100)/100);
+
+  const rw=$("resetWrap");rw.innerHTML="";
+  if(confirming&&state.order.length){
+    rw.innerHTML=`<span class="topBtns"><button type="button" class="resetBtn sure">전부 지우기</button><button type="button" class="resetCancel">취소</button></span>`;
+    rw.querySelector(".resetBtn").onclick=()=>{state.cart={};state.order=[];confirming=false;save();render()};
+    rw.querySelector(".resetCancel").onclick=()=>{confirming=false;renderBill()};
+  }else{
+    const rb=document.createElement("button");rb.type="button";rb.className="resetBtn";rb.textContent="초기화";
+    rb.disabled=!state.order.length;rb.onclick=()=>{confirming=true;renderBill()};rw.appendChild(rb);
+  }
+  const cw=$("clearWrap");cw.innerHTML="";
+  if(state.order.length){
+    if(confirming){cw.innerHTML=`<span class="confirm">전부 지울까요? <button type="button" class="yes">지우기</button><button type="button" class="no">취소</button></span>`;
+      cw.querySelector(".yes").onclick=()=>{state.cart={};state.order=[];confirming=false;save();render()};
+      cw.querySelector(".no").onclick=()=>{confirming=false;renderBill()};
+    }else{const b=document.createElement("button");b.className="clear";b.type="button";b.textContent="새 계산";b.onclick=()=>{confirming=true;renderBill()};cw.appendChild(b)}
+  }
+
+  const P=$("ppl");P.innerHTML="";
+  [1,2,3,4,5,6].forEach(n=>{const b=document.createElement("button");b.type="button";b.textContent=n;
+    b.setAttribute("aria-label",n+"명");b.setAttribute("aria-pressed",state.people===n);
+    b.onclick=()=>{state.people=n;save();render()};P.appendChild(b)});
+  const inp=document.createElement("input");inp.type="number";inp.min=1;inp.max=30;inp.id="pplCustom";inp.placeholder="7+";
+  inp.setAttribute("aria-label","인원 직접 입력");if(state.people>6)inp.value=state.people;
+  inp.onchange=()=>{state.people=Math.max(1,Math.min(30,parseInt(inp.value)||1));save();render()};P.appendChild(inp);
+
+  const s=split(total,state.people),per=$("per");let bar;
+  if(s.n===1){per.innerHTML=`<div class="big"><span>1명</span><strong>${eur(total)}</strong></div>`;bar="내역 보기"}
+  else if(s.ups===0){
+    per.innerHTML=`<div class="big"><span>${s.n}명 모두</span><strong>${eur(s.base)}</strong></div>`+
+      (s.odd?`<small>남는 ${eur(s.odd)}는 한 명이 더 내면 돼요.</small>`:`<small>${s.n} × ${eur(s.base)} = ${eur(total)}</small>`);
+    bar=`${s.n}명 · 1인 ${eur(s.base)}`;
+  }else{
+    const hi=s.base+0.5,lo=s.n-s.ups;
+    per.innerHTML=`<div class="big"><span>${s.ups}명</span><strong>${eur(hi)}</strong></div>`+
+      `<div class="big"><span>${lo}명</span><strong>${eur(s.base)}</strong></div>`+
+      `<small>${s.ups} × ${eur(hi)} + ${lo} × ${eur(s.base)} = ${eur(total-s.odd)}${s.odd?` (남는 ${eur(s.odd)}는 한 명이 더)`:""}</small>`;
+    bar=`${s.n}명 · ${eur(hi)} / ${eur(s.base)}`;
+  }
+  $("barTotal").textContent=eur(total);$("barPer").textContent=bar;
+}
+
+function render(){
+  if(edit&&$("panel").contains(document.activeElement)&&document.activeElement.matches("input")){pending=true;renderBill();return}
+  renderTabs();renderPanel();renderBill();
+  const eb=$("editBtn");eb.setAttribute("aria-pressed",edit);eb.textContent=edit?"편집 끝내기":"메뉴 편집";eb.disabled=!live;
+}
+$("editBtn").onclick=()=>{edit=!edit;sureDel=null;render()};
+$("bar").onclick=()=>$("bill").scrollIntoView({behavior:"smooth",block:"start"});
+render();
+
+setStatus("이 태블릿에 저장 · 인터넷 없이도 작동");
+</script>
+</body>
+</html>
