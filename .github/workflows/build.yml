@@ -18,18 +18,27 @@ jobs:
           java-version: '17'
       - name: Check Android SDK
         run: echo "ANDROID_HOME=$ANDROID_HOME" && ls "$ANDROID_HOME/platforms" || true
-      - name: Build
+      - name: Build calculator
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk MOHAE-calculator.apk
+      - name: Build hygiene log
+        working-directory: hygiene
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - name: Collect APKs
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk MOHAE-calculator.apk
+          cp hygiene/app/build/outputs/apk/debug/app-debug.apk MOHAE-hygiene.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: mohae-calculator-apk
-          path: MOHAE-calculator.apk
+          name: mohae-apks
+          path: |
+            MOHAE-calculator.apk
+            MOHAE-hygiene.apk
       - name: Publish as latest release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: 모해 계산기 (최신)
-          files: MOHAE-calculator.apk
+          name: 모해 앱 (최신)
+          files: |
+            MOHAE-calculator.apk
+            MOHAE-hygiene.apk
           make_latest: true

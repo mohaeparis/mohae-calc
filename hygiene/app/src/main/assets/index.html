@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>모해 위생 기록</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+/* Layout: sticky top bar (date + who) → two views: "오늘 체크" big tap rows, "월별 기록표" paper-form replica */
+:root{
+  --bg:#F6EEE3; --surface:#FFFBF5; --fg:#26301F; --muted:#6E7564; --line:#E2D6C4;
+  --accent:#3D4B34; --accent-fg:#FAF0E6; --gold:#C5A253; --gold-ink:#8E7228; --chip:#EFE5D5;
+  --ok:#3E7B4A; --ok-bg:#E3F0E2; --warn:#A3412E; --warn-bg:#F7E1DA; --week:#E9E1F0;
+  --paper:#FFFFFF; --paper-ink:#1E1E1E; --paper-line:#BDBDBD;
+  --display:"Black Han Sans","Gothic A1",system-ui,sans-serif;
+  --body:"Gothic A1","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  --form:"Quicksand","Gothic A1",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1B2117; --surface:#242C1F; --fg:#F3E9DA; --muted:#A9AE9C; --line:#3A4532;
+  --accent:#C5A253; --accent-fg:#1B2117; --gold-ink:#D9BB6E; --chip:#2E3828;
+  --ok:#8FCB97; --ok-bg:#24392A; --warn:#E89A86; --warn-bg:#40261F; --week:#2F2B38; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1B2117; --surface:#242C1F; --fg:#F3E9DA; --muted:#A9AE9C; --line:#3A4532;
+  --accent:#C5A253; --accent-fg:#1B2117; --gold-ink:#D9BB6E; --chip:#2E3828;
+  --ok:#8FCB97; --ok-bg:#24392A; --warn:#E89A86; --warn-bg:#40261F; --week:#2F2B38; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--accent)}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1100px;margin:0 auto}
+button{font-family:var(--body)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--accent);color:var(--accent-fg);padding-block:12px}
+.top .wrap{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.brand{font-family:var(--display);font-size:24px;line-height:1}
+.brand small{display:block;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:.14em;opacity:.8;margin-bottom:3px}
+.datenav{display:flex;align-items:center;gap:6px}
+.datenav button{width:40px;height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:transparent;color:inherit;font-size:18px;cursor:pointer}
+.datenav .d{min-width:150px;text-align:center;font-weight:800;font-size:17px}
+.datenav .today{width:auto;padding:0 12px;font-size:13px;font-weight:700}
+.who{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.who span{font-size:12px;font-weight:700;opacity:.85}
+.who button{min-width:44px;height:40px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.3);background:transparent;color:inherit;font-weight:800;font-size:15px;cursor:pointer}
+.who button[aria-pressed="true"]{background:var(--gold);color:#1B2117;border-color:var(--gold)}
+.who .edit{font-size:12px;font-weight:700;min-width:0}
+
+.tabs{display:flex;gap:6px;padding-block:14px 4px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:800;font-size:14px;padding:10px 18px;border-radius:999px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+.banner{background:var(--chip);border-radius:12px;padding:10px 14px;font-size:13px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:10px 0}
+.banner button{border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:700;font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer}
+
+/* today view */
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 18px}
+.sum{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--fg)}
+.sum b{display:block;font-size:13px}
+.sum .n{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums}
+.sum .bar{height:5px;border-radius:3px;background:var(--chip);margin-top:6px;overflow:hidden}
+.sum .bar i{display:block;height:100%;background:var(--ok)}
+.sum.done{border-color:var(--ok)}
+
+.block{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:16px;scroll-margin-top:110px}
+.bh{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.bh h2{margin:0;font-family:var(--display);font-weight:400;font-size:24px;line-height:1.1}
+.bh h2 small{font-family:var(--form);font-size:13px;font-weight:700;color:var(--muted);margin-left:8px;letter-spacing:.04em}
+.bh>div{flex-wrap:wrap;justify-content:flex-end}
+.bh .all{border:1px solid var(--accent);background:transparent;color:var(--accent);font-weight:800;font-size:13px;padding:8px 14px;border-radius:999px;cursor:pointer}
+.bh .cnt{font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.temps{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.tcard{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg)}
+.tcard .tt{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+.tcard .tt b{font-size:15px}
+.tcard .tt span{font-size:12px;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:5px}
+.chips button{min-width:0;letter-spacing:-.02em;height:48px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:800;font-size:15px;cursor:pointer;font-variant-numeric:tabular-nums;padding:0}
+.chips button.hot{color:var(--warn)}
+.chips button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.chips button.hot[aria-pressed="true"]{background:var(--warn);border-color:var(--warn);color:#fff}
+.tstate{margin-top:8px;font-size:13px;min-height:20px}
+.tstate .ok{color:var(--ok);font-weight:700}
+.tstate .bad{color:var(--warn);font-weight:700}
+
+.rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:12px;padding:10px 12px;min-height:62px;cursor:pointer}
+.row .box{width:36px;height:36px;border-radius:9px;border:2px solid var(--line);display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--surface)}
+.row .nm{min-width:0}
+.row .nm b{display:block;font-size:15px;overflow-wrap:anywhere}
+.row .nm span{font-size:12px;color:var(--muted)}
+.freq{font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;background:var(--chip);color:var(--muted);white-space:nowrap}
+.freq.S{background:var(--warn-bg);color:var(--warn)}
+.freq.W{background:var(--week);color:var(--fg)}
+.row.on{border-color:var(--ok);background:var(--ok-bg)}
+.row.on .box{background:var(--ok);border-color:var(--ok);color:#fff}
+.row.wk{border-style:dashed}
+.row.wk .nm span.wkdone{color:var(--ok);font-weight:700}
+.rem{margin-top:10px}
+.rem summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--muted)}
+.rem textarea{width:100%;min-height:60px;margin-top:6px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);font:500 14px var(--body);padding:8px 10px;resize:vertical}
+
+.acts{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+.acts p{margin:0 0 6px;font-size:13px;font-weight:800;color:var(--warn)}
+.acts.ok p{color:var(--ok)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pills button{border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:700;font-size:13px;padding:9px 12px;border-radius:999px;cursor:pointer}
+.pills button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.acts input,.form input[type=text],.form textarea{width:100%;margin-top:8px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--fg);font:500 14px var(--body);padding:9px 10px}
+.form{display:grid;gap:12px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px}
+.form .lbl{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:6px}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper button{width:48px;height:48px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-size:22px;font-weight:800;cursor:pointer}
+.stepper output{min-width:90px;text-align:center;font-family:var(--display);font-size:28px;font-variant-numeric:tabular-nums}
+.stepper output.hot{color:var(--warn)}
+.stepper .skip{width:auto;padding:0 12px;font-size:13px}
+.form .save{border:0;background:var(--accent);color:var(--accent-fg);font-weight:800;font-size:16px;padding:14px;border-radius:12px;cursor:pointer}
+.form .err{color:var(--warn);font-size:13px;font-weight:700;margin:0}
+.log{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.log .li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg);font-size:14px}
+.log .li .tm{font-weight:800;font-variant-numeric:tabular-nums}
+.log .li .tx{min-width:0;overflow-wrap:anywhere}
+.log .li .tx small{display:block;color:var(--muted);font-size:12px}
+.log .li .res{font-size:12px;font-weight:800;padding:3px 8px;border-radius:999px;background:var(--ok-bg);color:var(--ok)}
+.log .li .res.bad{background:var(--warn-bg);color:var(--warn)}
+.log .li .del{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:7px;padding:5px 8px;font-size:12px;font-weight:700;cursor:pointer;margin-left:6px}
+.log .li .del.sure{background:var(--warn);color:#fff;border-color:var(--warn)}
+.oilbig{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.oilbig .save{border:0;background:var(--accent);color:var(--accent-fg);font-weight:800;font-size:16px;padding:14px 20px;border-radius:12px;cursor:pointer}
+.oilbig .since{font-size:14px}
+.oilbig .since b{font-family:var(--display);font-weight:400;font-size:24px}
+.paper .list{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:8px;flex:0 0 auto}
+.paper .list th{background:#F3F3EE}
+.paper .list td{height:22px;padding:0 4px}
+.paper .list td.l{text-align:left}
+.paper .sub{margin:10px 0 0;font-size:12px;font-weight:700}
+.paper .empty{color:#888;font-size:11px;padding:8px 0}
+/* month view */
+.mbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin:12px 0}
+.sheets{display:flex;gap:6px;flex-wrap:wrap}
+.sheets button{border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:700;font-size:13px;padding:8px 14px;border-radius:9px;cursor:pointer}
+.sheets button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.mnav{display:flex;gap:6px;align-items:center}
+.mnav button{border:1px solid var(--line);background:var(--surface);color:var(--fg);font-weight:800;padding:8px 12px;border-radius:9px;cursor:pointer}
+.mnav b{min-width:120px;text-align:center}
+.pdf{border:0;background:var(--gold);color:#1B2117;font-weight:800;font-size:14px;padding:10px 16px;border-radius:10px;cursor:pointer}
+.msg{font-size:12px;color:var(--muted);margin:-4px 0 10px}
+
+.paperwrap{overflow-x:auto;border-radius:6px;padding-bottom:6px}
+.paper{width:1080px;min-height:763px;background:var(--paper);color:var(--paper-ink);font-family:var(--form);padding:22px 26px;box-shadow:0 2px 10px rgba(0,0,0,.12);display:flex;flex-direction:column}
+.paper h3{margin:0 0 6px;text-align:center;font-size:21px;font-weight:700;letter-spacing:.01em;display:flex;align-items:center;justify-content:center;gap:12px}
+.paper h3{position:relative;min-height:46px}
+.paper h3 .logo{position:absolute;left:0;top:-4px;height:52px;width:auto}
+.paper .meta{display:flex;justify-content:space-between;font-weight:700;font-size:14px;border-top:1px solid var(--paper-line);border-bottom:1px solid var(--paper-line);padding:6px 4px}
+.paper .meta i{font-style:normal;font-weight:500;margin-left:8px}
+.paper table{border-collapse:collapse;width:100%;flex:1;table-layout:fixed;font-size:10.5px}
+.paper td,.paper th{border:1px solid var(--paper-line);text-align:center;padding:0;height:auto}
+.paper th{font-weight:700;font-size:10px;height:26px}
+.paper .lab{text-align:center;font-weight:700;font-size:10.5px;padding:0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.paper .q{font-weight:700;font-size:10px;white-space:nowrap}
+.paper td.c{cursor:pointer;font-weight:700;font-size:9.5px;color:#245A2E}
+.paper td.c:hover{background:#F1F1EA}
+.paper td.c.dot::after{content:"✓";display:block;font-family:"Gothic A1",system-ui,sans-serif;font-size:15px;font-weight:800;line-height:1;color:#245A2E}
+.paper td.c.dot.hot::after{color:#B0351E}
+.paper td.c.chk::after{content:"✓";display:block;font-family:"Gothic A1",system-ui,sans-serif;font-size:13px;font-weight:800;line-height:1;color:#245A2E}
+.paper td.wkend{background:#FAFAF7}
+.paper td.future{background:#F7F7F7;cursor:default}
+.paper td.rmk{font-size:8px;color:#555;text-align:center}
+.paper .foot{font-size:9px;color:#777;text-align:right;margin-top:4px}
+
+.dialog{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.4);display:grid;place-items:center;padding:16px}
+.dialog .card{background:var(--surface);color:var(--fg);border-radius:14px;padding:18px;width:min(420px,100%);display:flex;flex-direction:column;gap:10px}
+.dialog h4{margin:0;font-size:17px}
+.dialog .list{display:flex;flex-direction:column;gap:6px}
+.dialog .it{display:flex;gap:6px}
+.dialog input{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:600 15px var(--body);padding:8px 10px}
+.dialog .x{border:1px solid var(--line);background:transparent;color:var(--warn);border-radius:8px;padding:0 10px;font-weight:800;cursor:pointer}
+.dialog .act{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.dialog .act button,.dialog .add{border:1px solid var(--line);background:var(--bg);color:var(--fg);font-weight:700;padding:9px 14px;border-radius:9px;cursor:pointer}
+.dialog .act .pri{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.dialog .hint{font-size:12px;color:var(--muted);margin:0}
+
+@media (max-width:640px){
+  .datenav .d{min-width:0;font-size:15px}
+  .chips button{height:44px;font-size:14px}
+  .top .wrap{gap:8px}
+}
+#printarea{display:none}
+@page{size:A4 landscape;margin:7mm}
+@media print{
+  body{background:#fff}
+  body::before,header.top,main,#dlg{display:none!important}
+  #printarea{display:block}
+  #printarea .paper{width:100%;min-height:0;height:194mm;box-shadow:none;padding:4mm 5mm;break-after:page;page-break-after:always}
+  #printarea .paper:last-child{break-after:auto;page-break-after:auto}
+  #printarea td.c{cursor:default}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<header class="top gut">
+  <div class="wrap">
+    <div class="brand"><small>MOHAE · HACCP</small>위생 기록</div>
+    <div class="datenav">
+      <button type="button" id="prev" aria-label="전날">‹</button>
+      <div class="d" id="dlabel"></div>
+      <button type="button" id="next" aria-label="다음날">›</button>
+      <button type="button" class="today" id="gotoday">오늘</button>
+    </div>
+    <div class="who" id="who"></div>
+  </div>
+</header>
+
+<main class="gut">
+  <div class="wrap">
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-today" aria-selected="true">오늘 체크</button>
+      <button type="button" role="tab" id="tab-month" aria-selected="false">월별 기록표</button>
+      <button type="button" role="tab" id="tab-units" aria-selected="false">설정 · 백업</button>
+    </div>
+    <div id="sampleBanner"></div>
+    <div id="view"></div>
+  </div>
+</main>
+<div id="dlg"></div>
+<div id="printarea"></div>
+
+<script>
+/* ---------- form definitions (same as the printed MOHAE_위생 sheets) ---------- */
+const ZONES=[
+ {id:"wc",ko:"화장실",fr:"Toilettes",items:[
+  ["Sols","바닥","J"],["Murs","벽","J"],["Poignées","손잡이","J"],["Interrupteurs","스위치","J"],["Robinetterie","수도꼭지","J"],
+  ["Lave-mains","세면대","J"],["Toilettes","변기","J"],["Miroirs","거울","J"],["Poubelles","쓰레기통","J"],
+  ["Papier toilette","휴지","J"],["Essuie main","핸드타월","J"],["Savon","비누","J"],["Fournitures","비품","J"]]},
+ {id:"salle",ko:"홀",fr:"Salle",items:[
+  ["Tables","테이블","S"],["Chaises","의자","S"],["Sols","바닥","J"],["Interrupteurs","스위치","J"],["Poignées","손잡이","J"],
+  ["Poubelles","쓰레기통","J"],["Tapis","매트","W"],["Etagère","선반","W"],["Miroirs","거울","W"],["Fenêtres","창문","W"],
+  ["Privé","창고","W"],["Murs et portes","벽·문","W"]]},
+ {id:"cuisine",ko:"주방",fr:"Cuisine",items:[
+  ["Sols – Plinthes","바닥·걸레받이","S"],["Grilles – Siphons","배수구","S"],["Poignées de portes","문손잡이","S"],["Interrupteurs","스위치","S"],
+  ["Robinetterie","수도꼭지","S"],["Ustensiles – Planches","도구·도마","S"],["Couteaux","칼","S"],["Friteuses","튀김기","S"],
+  ["Feux vifs – Fourneaux","화구·레인지","J"],["Fours micro-ondes","전자레인지","J"],["Trancheuse","슬라이서","J"],["Plans de travail","작업대","J"],
+  ["Passe plat/Monte-charge","패스·리프트","J"],["Poubelles","쓰레기통","J"],["Filtres de hottes","후드 필터","W"],
+  ["Réfrigérateur/Congélateur","냉장고·냉동고","W"],["Tiroirs et étagères","서랍·선반","W"],["Murs et portes","벽·문","W"]]},
+];
+const FREQ={S:["Après service","서비스 후"],J:["1 X Jour","하루 1번"],W:["1 X Semaine","주 1번"]};
+const RANGE={pos:[8,7,6,5,4,3,2,1,0],neg:[-22,-23,-24,-25,-26,-27,-28,-29,-30]};
+const LOC={salle:["홀","Salle"],cuisine:["주방","Cuisine"]};
+const TYPE={pos:["냉장","Frigo"],neg:["냉동","Congélateur"]};
+const DEFAULT_UNITS=[["fs1","pos","salle",1],["fs2","pos","salle",2],["cs1","neg","salle",1],["fc1","pos","cuisine",1],["fc2","pos","cuisine",2],["cc1","neg","cuisine",1]]
+  .map(([id,type,loc,n])=>({id,type,loc,name:`${TYPE[type][1]} ${LOC[loc][1]} ${n}`}));
+const koName=u=>u.loc?`${LOC[u.loc][0]} ${TYPE[u.type][0]} ${(u.name.match(/\d+$/)||[""])[0]}`.trim():TYPE[u.type][0];
+const LIMIT={pos:v=>v<=4,neg:v=>v<=-18};          // ok if true
+const ACTIONS=[["remesure","재측정 · 정상","Contrôle refait – conforme"],["reglage","온도 조절","Thermostat réglé"],["deplace","다른 냉장고로 옮김","Produits transférés"],["jete","제품 폐기","Produits jetés"],["tech","수리 요청","Technicien appelé"]];
+const RTYPE={pos:["냉장","Frais"],neg:["냉동","Surgelé"],amb:["상온","Ambiant"]};
+const RLIMIT={pos:v=>v<=4,neg:v=>v<=-18,amb:()=>true};
+const RES={ok:["수령","Accepté"],part:["일부 반품","Refus partiel"],ko:["전체 반품","Refusé"]};
+const LOGO="data:image/png;base64,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";
+const MOIS=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const WD=["일","월","화","수","목","금","토"];
+
+/* ---------- state (kept in this device's browser) ---------- */
+const KEY="mohae-hygiene-v1";
+let S=null;
+try{S=JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){}
+function initState(){
+  if(S&&S.data&&S.v>=2){if(!S.suppliers)S.suppliers=["Madon","Ace Food","Metro","JFC France","Kedy Pack"];return}
+  const keep=S&&S.data&&!S.sample, app=!!window.Android;
+  S={v:2,exported:{},suppliers:S?.suppliers||["Madon","Ace Food","Metro","JFC France","Kedy Pack"],people:S?.people||["K","L"],who:S?.who||"K",units:DEFAULT_UNITS.map(u=>({...u})),data:keep?S.data:{},sample:!keep&&!app};
+  if(!keep&&!app)seedSample();save();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+let view="today", cur=new Date(); cur.setHours(12,0,0,0);
+let mCur=new Date(cur), sheet="unit:fs1";
+
+const pad=n=>String(n).padStart(2,"0");
+const mk=d=>d.getFullYear()+"-"+pad(d.getMonth()+1);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+function M(key){if(!S.data[key])S.data[key]={c:{},t:{},r:{}};const m=S.data[key];m.rec=m.rec||[];m.oil=m.oil||[];return m}
+const hm=()=>{const n=new Date();return pad(n.getHours())+":"+pad(n.getMinutes())};
+const tempOk=(u,r)=>!r||LIMIT[u.type](r.v)||(r.a&&r.a.length>0);
+function isFuture(d){const t=new Date();t.setHours(23,59,59,0);return d>t}
+
+/* checklist helpers */
+function getC(d,z,i){return M(mk(d)).c[z]?.[i]?.[d.getDate()]||null}
+function setC(d,z,i,val){const m=M(mk(d));m.c[z]=m.c[z]||{};m.c[z][i]=m.c[z][i]||{};
+  if(val)m.c[z][i][d.getDate()]=val;else delete m.c[z][i][d.getDate()];save()}
+function weekDone(d,z,i){ // Monday-based week, returns [date, initials] of a check this week (other day)
+  const dow=(d.getDay()+6)%7, start=new Date(d);start.setDate(d.getDate()-dow);
+  for(let k=0;k<7;k++){const x=new Date(start);x.setDate(start.getDate()+k);
+    if(x.toDateString()===d.toDateString())continue;const v=getC(x,z,i);if(v)return [x,v]}
+  return null;
+}
+function getT(d,u){return M(mk(d)).t[u]?.[d.getDate()]||null}
+function setT(d,u,v){const m=M(mk(d));m.t[u]=m.t[u]||{};
+  if(v===null)delete m.t[u][d.getDate()];else m.t[u][d.getDate()]={v,i:S.who,h:hm()};save()}
+function setTA(d,u,patch){const r=getT(d,u);if(!r)return;Object.assign(r,patch);save()}
+function getR(d,k){return M(mk(d)).r[k]?.[d.getDate()]||""}
+function setR(d,k,txt){const m=M(mk(d));m.r[k]=m.r[k]||{};if(txt)m.r[k][d.getDate()]=txt;else delete m.r[k][d.getDate()];save()}
+
+/* sample data for days before today in the current month */
+function seedSample(){
+  const t=new Date();t.setHours(12,0,0,0);
+  for(let day=1;day<t.getDate();day++){
+    const d=new Date(t.getFullYear(),t.getMonth(),day,12);if(d.getDay()===0)continue;
+    const ini=day%3===0?"L":"K";
+    S.units.forEach(u=>{const m=M(mk(d));m.t[u.id]=m.t[u.id]||{};
+      m.t[u.id][day]={v:u.type==="pos"?(day%5===0?4:3):(day%4===0?-24:-25),i:ini}});
+    ZONES.forEach(z=>z.items.forEach(([,,f],i)=>{
+      if(f==="W"&&d.getDay()!==1)return;
+      if(day%9===0&&i===2)return;
+      setCRaw(d,z.id,i,ini)}));
+    const m=M(mk(d));
+    if(d.getDay()===2||d.getDay()===5)m.rec.push({id:"s"+day+"a",day,time:"10:15",sup:"Madon",type:"pos",t:3,pack:true,dlc:true,res:"ok",note:"",i:ini});
+    if(d.getDay()===3)m.rec.push({id:"s"+day+"b",day,time:"11:05",sup:"Metro",type:"neg",t:-20,pack:true,dlc:true,res:"ok",note:"",i:ini});
+    if(day%7===1)m.oil.push({id:"o"+day,day,time:"22:40",i:ini,note:""});
+  }
+}
+function setCRaw(d,z,i,v){const m=M(mk(d));m.c[z]=m.c[z]||{};m.c[z][i]=m.c[z][i]||{};m.c[z][i][d.getDate()]=v}
+
+/* ---------- top bar ---------- */
+function renderTop(){
+  const d=cur;$("dlabel").textContent=`${d.getMonth()+1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
+  const t=new Date();$("gotoday").hidden=d.toDateString()===t.toDateString();
+  $("next").disabled=isFuture(new Date(d.getTime()+864e5));
+  const w=$("who");w.innerHTML=`<span>체크하는 사람</span>`;
+  S.people.forEach(p=>{const b=document.createElement("button");b.type="button";b.textContent=p;
+    b.setAttribute("aria-pressed",S.who===p);b.onclick=()=>{S.who=p;save();render()};w.appendChild(b)});
+  const e=document.createElement("button");e.type="button";e.className="edit";e.textContent="편집";e.onclick=editPeople;w.appendChild(e);
+}
+$("prev").onclick=()=>{cur.setDate(cur.getDate()-1);mCur=new Date(cur);render()};
+$("next").onclick=()=>{const n=new Date(cur);n.setDate(n.getDate()+1);if(!isFuture(n)){cur=n;mCur=new Date(cur);render()}};
+$("gotoday").onclick=()=>{cur=new Date();cur.setHours(12,0,0,0);mCur=new Date(cur);render()};
+["today","month","units"].forEach(v=>$("tab-"+v).onclick=()=>{view=v;render()});
+
+function renderBanner(){
+  const b=$("sampleBanner");b.innerHTML="";
+  if(!S.sample)return;
+  b.innerHTML=`<div class="banner"><span>이번 달 지난 날짜에 <b>미리보기용 예시 기록</b>이 들어 있어요. 실제로 쓰기 전에 지워주세요.</span><button type="button" id="clrSample">예시 지우기</button></div>`;
+  $("clrSample").onclick=()=>{S.data={};S.sample=false;save();render()};
+}
+
+/* ---------- today view ---------- */
+function zoneCount(z,d){let need=0,done=0;
+  z.items.forEach(([,,f],i)=>{const v=getC(d,z.id,i);
+    if(f==="W"){if(v||weekDone(d,z.id,i)){need++;done++}else need++}
+    else{need++;if(v)done++}});return [done,need]}
+function renderToday(){
+  const v=$("view");v.innerHTML="";
+  const d=cur;
+  const now=new Date(),pm=new Date(now.getFullYear(),now.getMonth()-1,1,12);
+  const pd=S.data[mk(pm)],has=pd&&(Object.keys(pd.c||{}).length||Object.keys(pd.t||{}).length||(pd.rec||[]).length||(pd.oil||[]).length);
+  if(now.getDate()<=10&&!(S.exported||{})[mk(pm)]&&has){
+    const b=document.createElement("div");b.className="banner";
+    b.innerHTML=`<span><b>${pm.getMonth()+1}월 기록표</b>를 아직 PDF로 저장하지 않았어요. 구글 드라이브에 저장해두세요.</span><button type="button" id="goExport">지금 저장하기</button>`;
+    b.querySelector("#goExport").onclick=()=>{mCur=pm;view="month";render()};v.appendChild(b)}
+  // summary
+  const sm=document.createElement("div");sm.className="summary";
+  const tDone=S.units.filter(u=>{const r=getT(d,u.id);return r&&tempOk(u,r)}).length;
+  sm.appendChild(sumCard("온도",tDone,S.units.length,"b-temp"));
+  ZONES.forEach(z=>{const [a,n]=zoneCount(z,d);sm.appendChild(sumCard(z.ko,a,n,"b-"+z.id))});
+  const recs=M(mk(d)).rec.filter(r=>r.day===d.getDate());
+  sm.appendChild(infoCard("입고 검수",recs.length+"건","b-rec"));
+  const lastOil=lastOilBefore(d);
+  sm.appendChild(infoCard("튀김기름",lastOil?daysAgo(lastOil,d):"기록 없음","b-oil"));
+  v.appendChild(sm);
+
+  // temperatures
+  const tb=block("b-temp","온도 기록","Températures",`${tDone}/${S.units.length}`);
+  const g=document.createElement("div");g.className="temps";
+  S.units.forEach(u=>{
+    const rec=getT(d,u.id), c=document.createElement("div");c.className="tcard";
+    c.innerHTML=`<div class="tt"><b>${esc(koName(u))}</b><span>${esc(u.name)} · ${u.type==="pos"?"기준 4℃ 이하":"-22 ~ -30℃"}</span></div>`;
+    const ch=document.createElement("div");ch.className="chips";
+    RANGE[u.type].slice().reverse().forEach(val=>{const b=document.createElement("button");b.type="button";b.textContent=u.type==="neg"?String(val):val+"°";
+      if(!LIMIT[u.type](val))b.classList.add("hot");b.setAttribute("aria-pressed",rec?.v===val);
+      b.setAttribute("aria-label",`${u.name} ${val}도`);
+      b.onclick=()=>{setT(d,u.id,rec?.v===val?null:val);render()};ch.appendChild(b)});
+    c.appendChild(ch);
+    const st=document.createElement("div");st.className="tstate";
+    if(rec)st.innerHTML=LIMIT[u.type](rec.v)?`<span class="ok">✓ ${rec.v}℃ 기록 · ${esc(rec.i)} · ${rec.h||""}</span>`:`<span class="bad">⚠ ${rec.v}℃ 기준 초과 · ${esc(rec.i)} · ${rec.h||""}</span>`;
+    else st.textContent="오늘 온도를 눌러 기록하세요.";
+    c.appendChild(st);
+    if(rec&&!LIMIT[u.type](rec.v))c.appendChild(actionPanel(d,u,rec));
+    g.appendChild(c)});
+  tb.appendChild(g);v.appendChild(tb);
+  v.appendChild(receptionBlock(d));
+
+  // zones
+  ZONES.forEach(z=>{
+    const [a,n]=zoneCount(z,d);
+    const bl=block("b-"+z.id,z.ko,z.fr,`${a}/${n}`,()=>{z.items.forEach(([,,f],i)=>{if(f!=="W"&&!getC(d,z.id,i))setC(d,z.id,i,S.who)});render()});
+    if(z.items.some(it=>it[2]==="W")){
+      const wb=document.createElement("button");wb.type="button";wb.className="all";wb.textContent="주간 항목 모두 체크";
+      wb.onclick=()=>{z.items.forEach(([,,f],i)=>{if(f==="W"&&!getC(d,z.id,i)&&!weekDone(d,z.id,i))setC(d,z.id,i,S.who)});render()};
+      bl.querySelector(".bh>div").appendChild(wb);
+    }
+    const rows=document.createElement("div");rows.className="rows";
+    z.items.forEach(([fr,ko,f],i)=>{
+      const val=getC(d,z.id,i), wk=f==="W"&&!val?weekDone(d,z.id,i):null;
+      const r=document.createElement("button");r.type="button";r.className="row"+(val?" on":"")+(f==="W"?" wk":"");
+      r.setAttribute("aria-pressed",!!val);
+      r.innerHTML=`<span class="box">${val?esc(val):""}</span>
+        <span class="nm"><b>${esc(fr)}</b><span>${esc(ko)}${wk?` · <span class="wkdone">이번 주 완료 ${wk[0].getMonth()+1}/${wk[0].getDate()} ${esc(wk[1])}</span>`:""}</span></span>
+        <span class="freq ${f}">${FREQ[f][1]}</span>`;
+      r.onclick=()=>{setC(d,z.id,i,val?null:S.who);render()};
+      rows.appendChild(r)});
+    bl.appendChild(rows);bl.appendChild(remark(d,"z:"+z.id,"관리자 메모 (Remarques du contrôleur)"));
+    v.appendChild(bl)});
+  v.appendChild(oilBlock(d));
+}
+function infoCard(label,txt,target){
+  const b=document.createElement("button");b.type="button";b.className="sum";
+  b.innerHTML=`<b>${label}</b><span class="n" style="font-size:20px">${esc(txt)}</span>`;
+  b.onclick=()=>$(target)?.scrollIntoView({behavior:"smooth",block:"start"});return b}
+function lastOilBefore(d){
+  for(let back=0;back<4;back++){const m=new Date(d.getFullYear(),d.getMonth()-back,1,12);const list=M(mk(m)).oil
+    .filter(o=>back>0||o.day<=d.getDate()).sort((a,b)=>b.day-a.day||(b.time>a.time?1:-1));
+    if(list.length)return new Date(m.getFullYear(),m.getMonth(),list[0].day,12)}
+  return null}
+function daysAgo(x,d){const n=Math.round((d-x)/864e5);return n===0?"오늘 교체":n+"일 전"}
+
+/* corrective actions for out-of-range temperature */
+function actionPanel(d,u,rec){
+  const a=rec.a||[];const box=document.createElement("div");box.className="acts"+(a.length?" ok":"");
+  box.innerHTML=`<p>${a.length?"✓ 조치 기록됨":"어떤 조치를 했는지 선택하세요 (필수)"}</p><div class="pills"></div>
+    <input type="text" id="an-${u.id}" placeholder="추가 내용 (선택) · 예: 문 열려 있었음, 5분 뒤 3℃ 확인" aria-label="조치 내용">`;
+  const pl=box.querySelector(".pills");
+  ACTIONS.forEach(([k,ko])=>{const b=document.createElement("button");b.type="button";b.textContent=ko;b.setAttribute("aria-pressed",a.includes(k));
+    b.onclick=()=>{const nx=a.includes(k)?a.filter(x=>x!==k):a.concat(k);setTA(d,u.id,{a:nx,ai:S.who});render()};pl.appendChild(b)});
+  const inp=box.querySelector("input");inp.value=rec.n||"";
+  inp.onchange=()=>setTA(d,u.id,{n:inp.value.trim()});
+  return box}
+
+/* reception */
+let rdraft=null;
+function newDraft(){return {sup:null,type:"pos",t:3,noT:false,pack:true,dlc:true,res:"ok",note:""}}
+function receptionBlock(d){
+  const m=M(mk(d)),recs=m.rec.filter(r=>r.day===d.getDate());
+  const bl=block("b-rec","입고 검수","Contrôle à réception",recs.length+"건");
+  if(!rdraft)rdraft=newDraft();const f=rdraft;
+  const form=document.createElement("div");form.className="form";
+  const hot=f.type!=="amb"&&!RLIMIT[f.type](f.t);
+  form.innerHTML=`
+    <div><div class="lbl">거래처</div><div class="pills" id="rsup"></div></div>
+    <div><div class="lbl">종류</div><div class="pills" id="rtype"></div></div>
+    <div ${f.type==="amb"?"hidden":""}><div class="lbl">받을 때 온도 (기준 ${f.type==="pos"?"4℃ 이하":"-18℃ 이하"})</div>
+      <div class="stepper"><button type="button" id="tm" aria-label="온도 낮추기">−</button><output id="tv" class="${hot?"hot":""}">${f.t}℃</output><button type="button" id="tp" aria-label="온도 올리기">+</button></div></div>
+    <div><div class="lbl">상태 확인</div><div class="pills" id="rchk"></div></div>
+    <div><div class="lbl">결과</div><div class="pills" id="rres"></div></div>
+    <input type="text" id="rnote" placeholder="메모 (선택) · 예: 돼지고기 1팩 반품, 박스 젖음" aria-label="입고 메모">
+    <p class="err" id="rerr" hidden></p>
+    <button type="button" class="save" id="rsave">입고 기록 저장</button>`;
+  const pills=(id,list,cur,set)=>{const el=form.querySelector(id);list.forEach(([k,l])=>{const b=document.createElement("button");b.type="button";b.textContent=l;
+    b.setAttribute("aria-pressed",cur(k));b.onclick=()=>{set(k);render();};el.appendChild(b)})};
+  pills("#rsup",S.suppliers.map(s=>[s,s]).concat([["__other","+ 기타"]]),k=>f.sup===k||(k==="__other"&&f.sup==="Autre"),k=>{f.sup=k==="__other"?"Autre":k});
+  pills("#rtype",Object.entries(RTYPE).map(([k,v])=>[k,v[0]]),k=>f.type===k,k=>{f.type=k;f.t=k==="neg"?-20:3});
+  pills("#rchk",[["pack","포장 이상 없음"],["dlc","유통기한 OK"]],k=>f[k],k=>{f[k]=!f[k]});
+  pills("#rres",Object.entries(RES).map(([k,v])=>[k,v[0]]),k=>f.res===k,k=>{f.res=k});
+  const step=dv=>{f.t=Math.round((f.t+dv)*10)/10;render()};
+  form.querySelector("#tm").onclick=()=>step(-1);form.querySelector("#tp").onclick=()=>step(1);
+  const note=form.querySelector("#rnote");note.value=f.note;note.oninput=()=>f.note=note.value;
+  form.querySelector("#rsave").onclick=()=>{
+    const err=form.querySelector("#rerr");
+    if(!f.sup){err.textContent="거래처를 골라주세요.";err.hidden=false;return}
+    if(f.sup==="Autre"&&!f.note.trim()){err.textContent="기타 거래처는 메모에 이름을 적어주세요.";err.hidden=false;return}
+    const bad=(f.type!=="amb"&&!RLIMIT[f.type](f.t))||!f.pack||!f.dlc;
+    if(bad&&f.res==="ok"&&!f.note.trim()){err.textContent="기준에 안 맞는데 '수령'이면, 메모에 이유를 적어주세요.";err.hidden=false;return}
+    m.rec.push({id:Date.now().toString(36),day:d.getDate(),time:hm(),sup:f.sup,type:f.type,t:f.type==="amb"?null:f.t,pack:f.pack,dlc:f.dlc,res:f.res,note:f.note.trim(),i:S.who});
+    save();rdraft=newDraft();render()};
+  bl.appendChild(form);
+  const log=document.createElement("div");log.className="log";
+  recs.slice().reverse().forEach(r=>log.appendChild(recLine(m,r)));
+  bl.appendChild(log);return bl}
+let sureRec=null;
+function recLine(m,r){
+  const li=document.createElement("div");li.className="li";
+  const tTxt=r.t===null||r.t===undefined?RTYPE[r.type][0]:`${RTYPE[r.type][0]} ${r.t}℃`;
+  const flags=[!r.pack?"포장 이상":"",!r.dlc?"유통기한 문제":""].filter(Boolean).join(" · ");
+  li.innerHTML=`<span class="tm">${r.time}</span><span class="tx">${esc(r.sup)} · ${tTxt}<small>${esc(r.i)}${flags?" · "+flags:""}${r.note?" · "+esc(r.note):""}</small></span>
+    <span><span class="res ${r.res!=="ok"?"bad":""}">${RES[r.res][0]}</span><button type="button" class="del${sureRec===r.id?" sure":""}">${sureRec===r.id?"정말 삭제":"삭제"}</button></span>`;
+  li.querySelector(".del").onclick=()=>{if(sureRec===r.id){m.rec=m.rec.filter(x=>x.id!==r.id);sureRec=null;save()}else sureRec=r.id;render()};
+  return li}
+
+/* oil */
+let sureOil=null;
+function oilBlock(d){
+  const m=M(mk(d)),list=m.oil.filter(o=>o.day===d.getDate());
+  const bl=block("b-oil","튀김기름","Huile de friture","");
+  const last=lastOilBefore(d);
+  const w=document.createElement("div");w.className="oilbig";
+  w.innerHTML=`<button type="button" class="save" id="oiladd">기름 교체함</button>
+    <span class="since">마지막 교체 <b>${last?daysAgo(last,d):"—"}</b>${last?` (${last.getMonth()+1}/${last.getDate()})`:""}</span>`;
+  w.querySelector("#oiladd").onclick=()=>{m.oil.push({id:Date.now().toString(36),day:d.getDate(),time:hm(),i:S.who,note:""});save();render()};
+  bl.appendChild(w);
+  const log=document.createElement("div");log.className="log";
+  list.forEach(o=>{const li=document.createElement("div");li.className="li";
+    li.innerHTML=`<span class="tm">${o.time}</span><span class="tx">기름 교체 · ${esc(o.i)}</span><span><button type="button" class="del${sureOil===o.id?" sure":""}">${sureOil===o.id?"정말 삭제":"삭제"}</button></span>`;
+    li.querySelector(".del").onclick=()=>{if(sureOil===o.id){m.oil=m.oil.filter(x=>x.id!==o.id);sureOil=null;save()}else sureOil=o.id;render()};
+    log.appendChild(li)});
+  bl.appendChild(log);return bl}
+function sumCard(label,a,n,target){
+  const b=document.createElement("button");b.type="button";b.className="sum"+(a>=n?" done":"");
+  b.innerHTML=`<b>${label}</b><span class="n">${a}/${n}</span><div class="bar"><i style="width:${n?Math.round(a/n*100):0}%"></i></div>`;
+  b.onclick=()=>$(target)?.scrollIntoView({behavior:"smooth",block:"start"});return b}
+function block(id,ko,fr,cnt,allFn){
+  const s=document.createElement("section");s.className="block";s.id=id;
+  s.innerHTML=`<div class="bh"><h2>${ko}<small>${fr}</small></h2><div style="display:flex;gap:10px;align-items:center"><span class="cnt">${cnt}</span></div></div>`;
+  if(allFn){const b=document.createElement("button");b.type="button";b.className="all";b.textContent="매일 항목 모두 체크";b.onclick=allFn;s.querySelector(".bh>div").appendChild(b)}
+  return s}
+function remark(d,key,label){
+  const det=document.createElement("details");det.className="rem";const txt=getR(d,key);if(txt)det.open=true;
+  det.innerHTML=`<summary>${label}</summary><textarea id="rm-${key.replace(":","-")}" aria-label="${label}"></textarea>`;
+  const ta=det.querySelector("textarea");ta.value=txt;
+  let t;ta.oninput=()=>{clearTimeout(t);t=setTimeout(()=>setR(d,key,ta.value.trim()),400)};
+  ta.onblur=()=>{clearTimeout(t);setR(d,key,ta.value.trim())};return det}
+
+/* ---------- month view: paper replica ---------- */
+function sheetsList(){return S.units.map(u=>["unit:"+u.id,koName(u)]).concat(ZONES.map(z=>["zone:"+z.id,z.ko+" "+z.fr]),[["rec:all","입고 검수"],["oil:all","튀김기름"]])}
+function renderMonth(){
+  const v=$("view");v.innerHTML="";
+  if(!sheetsList().some(s=>s[0]===sheet))sheet=sheetsList()[0][0];
+  const bar=document.createElement("div");bar.className="mbar";
+  const sh=document.createElement("div");sh.className="sheets";
+  sheetsList().forEach(([k,l])=>{const b=document.createElement("button");b.type="button";b.textContent=l;b.setAttribute("aria-pressed",sheet===k);
+    b.onclick=()=>{sheet=k;render()};sh.appendChild(b)});
+  const mn=document.createElement("div");mn.className="mnav";
+  mn.innerHTML=`<button type="button" id="mp" aria-label="이전 달">‹</button><b>${mCur.getFullYear()}년 ${mCur.getMonth()+1}월</b><button type="button" id="mn" aria-label="다음 달">›</button><button type="button" class="pdf" id="pdf">PDF로 저장</button>`;
+  bar.appendChild(sh);bar.appendChild(mn);v.appendChild(bar);
+  $("mp").onclick=()=>{mCur=new Date(mCur.getFullYear(),mCur.getMonth()-1,1,12);render()};
+  $("mn").onclick=()=>{const n=new Date(mCur.getFullYear(),mCur.getMonth()+1,1,12);if(!isFuture(n)){mCur=n;render()}};
+  const msg=document.createElement("p");msg.className="msg";msg.id="pdfmsg";
+  msg.textContent="칸을 눌러 바로 고칠 수도 있어요. 지금 선택된 이니셜로 기록돼요.";v.appendChild(msg);
+  $("pdf").onclick=()=>{preparePrint(mCur);S.exported=S.exported||{};S.exported[mk(mCur)]=true;save();if(window.Android?.savePdf){window.Android.savePdf(`MOHAE_HACCP_${mk(mCur)}`)}
+    else{msg.textContent="여기 미리보기에서는 PDF 저장이 안 돼요. 앱으로 만들면 이 버튼 한 번에 이 달 기록표 전체가 PDF로 저장돼요."}};
+  if(window.Android)msg.textContent="PDF로 저장 → 프린터를 'PDF로 저장'으로 → 저장 위치에서 Google Drive를 고르면 돼요.";
+
+  const wrap=document.createElement("div");wrap.className="paperwrap";
+  const [kind,id]=sheet.split(":");
+  wrap.appendChild(kind==="unit"?paperTemp(S.units.find(u=>u.id===id),mCur):kind==="zone"?paperZone(ZONES.find(z=>z.id===id),mCur):kind==="rec"?paperRec(mCur):paperOil(mCur));
+  v.appendChild(wrap);
+}
+/* all sheets of a month, one per page, for the PDF */
+function preparePrint(m){
+  const pa=$("printarea");pa.innerHTML="";
+  S.units.forEach(u=>pa.appendChild(paperTemp(u,m)));
+  ZONES.forEach(z=>pa.appendChild(paperZone(z,m)));
+  pa.appendChild(paperRec(m));pa.appendChild(paperOil(m));
+  return pa.children.length}
+window.preparePrint=preparePrint;
+function daysIn(m){return new Date(m.getFullYear(),m.getMonth()+1,0).getDate()}
+function dayHead(){let h="";for(let i=1;i<=31;i++)h+=`<th>${i}</th>`;return h}
+function paperHead(title,right,m){
+  return `<h3><img class="logo" src="${LOGO}" alt="MOHAE"><span>${title}</span></h3>
+   <div class="meta"><span>MOIS &amp; ANNÉE :<i>${MOIS[m.getMonth()]} ${m.getFullYear()}</i></span><span>${right}</span></div>`}
+function paperTemp(u,m){
+  const p=document.createElement("div");p.className="paper";
+  const pos=u.type==="pos",n=daysIn(m);
+  let h=paperHead(pos?"ENCEINTES FROIDES POSITIVES":"ENCEINTES FROIDES NÉGATIVES",`NOM DE L'ENCEINTE FROIDE :<i>${esc(u.name)}</i>`,m);
+  h+=`<table><colgroup><col style="width:70px"></colgroup><thead><tr><th></th>${dayHead()}</tr></thead><tbody>`;
+  RANGE[u.type].forEach(val=>{h+=`<tr><td class="lab">${val}℃</td>`;
+    for(let day=1;day<=31;day++){
+      if(day>n){h+=`<td class="future"></td>`;continue}
+      const d=new Date(m.getFullYear(),m.getMonth(),day,12),r=getT(d,u.id),fut=isFuture(d);
+      const cls=["c"];if(fut)cls.push("future");if(r&&r.v===val){cls.push("dot");if(!LIMIT[u.type](val))cls.push("hot")}
+      h+=`<td class="${cls.join(" ")}" data-day="${day}" data-v="${val}"></td>`}
+    h+=`</tr>`});
+  h+=`<tr><td class="lab">INITIALES</td>`;
+  for(let day=1;day<=31;day++){const d=new Date(m.getFullYear(),m.getMonth(),day,12);const r=day<=n?getT(d,u.id):null;h+=`<td class="q">${r?esc(r.i):""}</td>`}
+  h+=`</tr><tr><td class="lab">ACTION</td>`;
+  const acts=[];
+  for(let day=1;day<=31;day++){const d=new Date(m.getFullYear(),m.getMonth(),day,12);const r=day<=n?getT(d,u.id):null;
+    const out=r&&!LIMIT[u.type](r.v);if(out)acts.push([day,r]);h+=`<td class="rmk">${out?(r.a&&r.a.length?"✓":"!"):""}</td>`}
+  h+=`</tr></tbody></table><p class="sub">ACTIONS CORRECTIVES</p>`;
+  if(!acts.length)h+=`<div class="empty">Aucune non-conformité ce mois-ci.</div>`;
+  else{h+=`<table class="list"><colgroup><col style="width:60px"><col style="width:60px"><col style="width:70px"><col><col style="width:70px"></colgroup><thead><tr><th>Date</th><th>Heure</th><th>T°</th><th>Action corrective</th><th>Initiales</th></tr></thead><tbody>`;
+    acts.forEach(([day,r])=>{const txt=(r.a||[]).map(k=>ACTIONS.find(x=>x[0]===k)?.[2]).filter(Boolean).join(" ; ")+(r.n?" — "+r.n:"");
+      h+=`<tr><td>${pad(day)}/${pad(m.getMonth()+1)}</td><td>${r.h||""}</td><td>${r.v}℃</td><td class="l">${esc(txt||"(à compléter)")}</td><td>${esc(r.ai||r.i)}</td></tr>`});
+    h+=`</tbody></table>`}
+  h+=`<div class="foot">MOHAE · 2 rue Richer 75009 Paris · ✓ = action corrective enregistrée · ! = à compléter</div>`;
+  p.innerHTML=h;
+  p.querySelectorAll("td.c:not(.future)").forEach(td=>td.onclick=()=>{
+    const d=new Date(m.getFullYear(),m.getMonth(),+td.dataset.day,12),val=+td.dataset.v,r=getT(d,u.id);
+    setT(d,u.id,r&&r.v===val?null:val);render()});
+  return p}
+function paperRec(m){
+  const p=document.createElement("div");p.className="paper";
+  let h=paperHead("CONTRÔLE À RÉCEPTION DES MARCHANDISES","",m);
+  const rows=M(mk(m)).rec.slice().sort((a,b)=>a.day-b.day||(a.time>b.time?1:-1));
+  h+=`<table class="list"><colgroup><col style="width:62px"><col style="width:56px"><col style="width:130px"><col style="width:80px"><col style="width:64px"><col style="width:76px"><col style="width:64px"><col style="width:110px"><col><col style="width:64px"></colgroup>
+   <thead><tr><th>Date</th><th>Heure</th><th>Fournisseur</th><th>Type</th><th>T°</th><th>Emballage</th><th>DLC</th><th>Décision</th><th>Remarques</th><th>Initiales</th></tr></thead><tbody>`;
+  rows.forEach(r=>{h+=`<tr><td>${pad(r.day)}/${pad(m.getMonth()+1)}</td><td>${r.time}</td><td>${esc(r.sup)}</td><td>${RTYPE[r.type][1]}</td><td>${r.t===null||r.t===undefined?"—":r.t+"℃"}</td>
+    <td>${r.pack?"Conforme":"Non conf."}</td><td>${r.dlc?"OK":"Non conf."}</td><td>${RES[r.res][1]}</td><td class="l">${esc(r.note)}</td><td>${esc(r.i)}</td></tr>`});
+  for(let k=rows.length;k<18;k++)h+=`<tr>${"<td></td>".repeat(10)}</tr>`;
+  h+=`</tbody></table><div class="foot">MOHAE · 2 rue Richer 75009 Paris · Frais ≤ 4℃ · Surgelé ≤ -18℃</div>`;
+  p.innerHTML=h;return p}
+function paperOil(m){
+  const p=document.createElement("div");p.className="paper";
+  let h=paperHead("SUIVI DES HUILES DE FRITURE","FRITEUSE",m);
+  const rows=M(mk(m)).oil.slice().sort((a,b)=>a.day-b.day||(a.time>b.time?1:-1));
+  h+=`<table class="list"><colgroup><col style="width:90px"><col style="width:80px"><col><col style="width:90px"></colgroup>
+   <thead><tr><th>Date</th><th>Heure</th><th>Opération</th><th>Initiales</th></tr></thead><tbody>`;
+  rows.forEach(r=>{h+=`<tr><td>${pad(r.day)}/${pad(m.getMonth()+1)}</td><td>${r.time}</td><td class="l">Changement complet de l'huile${r.note?" — "+esc(r.note):""}</td><td>${esc(r.i)}</td></tr>`});
+  for(let k=rows.length;k<18;k++)h+=`<tr>${"<td></td>".repeat(4)}</tr>`;
+  h+=`</tbody></table><div class="foot">MOHAE · 2 rue Richer 75009 Paris</div>`;
+  p.innerHTML=h;return p}
+function paperZone(z,m){
+  const p=document.createElement("div");p.className="paper";const n=daysIn(m);
+  let h=paperHead("ENREGISTREMENT DU PLAN DE NETTOYAGE &amp; DE DÉSINFECTION",`ZONE :<i>${z.fr}</i>`,m);
+  h+=`<table><colgroup><col style="width:150px"><col style="width:84px"></colgroup><thead><tr><th>QUOI</th><th>QUAND</th>${dayHead()}</tr></thead><tbody>`;
+  z.items.forEach(([fr,,f],i)=>{h+=`<tr><td class="lab">${esc(fr)}</td><td class="q">${FREQ[f][0]}</td>`;
+    for(let day=1;day<=31;day++){
+      if(day>n){h+=`<td class="future"></td>`;continue}
+      const d=new Date(m.getFullYear(),m.getMonth(),day,12),v=getC(d,z.id,i),fut=isFuture(d);
+      h+=`<td class="c${fut?" future":""}${v?" chk":""}" data-day="${day}" data-i="${i}" title="${v?esc(v):""}"></td>`}
+    h+=`</tr>`});
+  h+=`<tr><td class="lab" colspan="2">INITIALES DU CONTRÔLEUR</td>`;
+  for(let day=1;day<=31;day++){const d=new Date(m.getFullYear(),m.getMonth(),day,12);
+    const set=new Set();if(day<=n)z.items.forEach((_,i)=>{const v=getC(d,z.id,i);if(v)set.add(v)});
+    h+=`<td class="q">${esc([...set].join("/"))}</td>`}
+  h+=`</tr><tr><td class="lab" colspan="2">REMARQUES DU CONTRÔLEUR</td>`;
+  for(let day=1;day<=31;day++){const d=new Date(m.getFullYear(),m.getMonth(),day,12);const r=day<=n?getR(d,"z:"+z.id):"";h+=`<td class="rmk" title="${esc(r)}">${r?"✎":""}</td>`}
+  h+=`</tr></tbody></table><div class="foot">MOHAE · 2 rue Richer 75009 Paris · ✎ = remarque enregistrée</div>`;
+  p.innerHTML=h;
+  p.querySelectorAll("td.c:not(.future)").forEach(td=>td.onclick=()=>{
+    const d=new Date(m.getFullYear(),m.getMonth(),+td.dataset.day,12),i=+td.dataset.i;
+    setC(d,z.id,i,getC(d,z.id,i)?null:S.who);render()});
+  return p}
+
+/* ---------- units settings ---------- */
+function renderUnits(){
+  const v=$("view");v.innerHTML="";
+  const bl=block("b-units","냉장·냉동 설정","Enceintes froides","");
+  const list=document.createElement("div");list.className="rows";
+  S.units.forEach((u,ix)=>{const r=document.createElement("div");r.className="tcard";
+    r.innerHTML=`<div class="tt"><b>${esc(koName(u))}</b><span>${u.type==="pos"?"0 ~ 8℃":"-22 ~ -30℃"}</span></div>
+      <div style="display:flex;gap:6px"><input id="un-${u.id}" value="${esc(u.name)}" aria-label="이름" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:600 15px var(--body);padding:8px 10px">
+      <button type="button" class="x" style="border:1px solid var(--line);background:transparent;color:var(--warn);border-radius:8px;padding:0 12px;font-weight:800;cursor:pointer">삭제</button></div>`;
+    const inp=r.querySelector("input");inp.onchange=()=>{const t=inp.value.trim();if(t){u.name=t;save()}};
+    const del=r.querySelector(".x");let sure=false;
+    del.onclick=()=>{if(S.units.length<=1)return;if(!sure){sure=true;del.textContent="정말 삭제";del.style.background="var(--warn)";del.style.color="#fff";return}
+      S.units.splice(ix,1);save();render()};
+    list.appendChild(r)});
+  bl.appendChild(list);
+  const add=document.createElement("div");add.style.cssText="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap";
+  add.innerHTML=Object.keys(LOC).flatMap(l=>Object.keys(TYPE).map(t=>`<button type="button" class="all" data-l="${l}" data-t="${t}">+ ${LOC[l][0]} ${TYPE[t][0]}</button>`)).join("");
+  bl.appendChild(add);
+  const note=document.createElement("p");note.className="msg";note.style.marginTop="12px";
+  note.textContent="이름은 기록표 'NOM DE L'ENCEINTE FROIDE' 칸에 그대로 들어가요. 삭제해도 이미 쌓인 기록은 남아 있어요.";bl.appendChild(note);
+  v.appendChild(bl);
+  const addU=(t,l)=>{const same=S.units.filter(u=>u.type===t&&u.loc===l);const n=same.length+1;
+    const u={id:t[0]+l[0]+Date.now().toString(36),type:t,loc:l,name:`${TYPE[t][1]} ${LOC[l][1]} ${n}`};
+    const last=S.units.map(x=>x.loc).lastIndexOf(l);S.units.splice(last<0?S.units.length:last+1,0,u);save();render()};
+  add.querySelectorAll("button").forEach(b=>b.onclick=()=>addU(b.dataset.t,b.dataset.l));
+  v.appendChild(backupBlock());
+}
+let restoreAsk=false;
+function backupBlock(){
+  const bl=block("b-backup","백업","Sauvegarde","");
+  const app=!!window.Android;
+  const w=document.createElement("div");w.className="oilbig";
+  w.innerHTML=`<button type="button" class="save" id="bkSave">백업 파일 저장</button>
+    ${restoreAsk?`<span class="since">지금 기록이 백업 파일 내용으로 <b style="font-family:var(--body);font-size:14px;font-weight:800">전부 바뀌어요.</b></span><button type="button" class="all" id="bkYes">불러오기</button><button type="button" class="all" id="bkNo">취소</button>`
+      :`<button type="button" class="all" id="bkOpen">백업 불러오기</button>`}`;
+  bl.appendChild(w);
+  const p=document.createElement("p");p.className="msg";p.id="bkmsg";p.style.marginTop="12px";
+  p.textContent=app?"저장할 때 위치를 Google Drive의 모해 폴더로 고르면 드라이브에 바로 올라가요. 한 달에 한 번, PDF 저장할 때 같이 해두세요."
+    :"이 미리보기에서는 백업이 안 돼요. 앱에서는 이 버튼으로 Google Drive에 저장하고 불러올 수 있어요.";
+  bl.appendChild(p);
+  const msg=t=>{const e=$("bkmsg");if(e)e.textContent=t};
+  w.querySelector("#bkSave").onclick=()=>{if(!app)return;
+    const n=new Date();const name=`MOHAE_위생_백업_${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}.json`;
+    window.Android.saveBackup(JSON.stringify({app:"mohae-hygiene",saved:n.toISOString(),state:S}),name)};
+  if(restoreAsk){w.querySelector("#bkYes").onclick=()=>{restoreAsk=false;if(app)window.Android.openBackup();render()};w.querySelector("#bkNo").onclick=()=>{restoreAsk=false;render()}}
+  else w.querySelector("#bkOpen").onclick=()=>{if(!app)return;restoreAsk=true;render()};
+  return bl}
+window.onBackupResult=ok=>{const e=$("bkmsg");if(e)e.textContent=ok?"✓ 백업 파일을 저장했어요.":"저장하지 않았어요. 다시 눌러서 위치를 골라주세요."};
+window.restoreBackup=text=>{
+  try{const o=JSON.parse(text);if(o.app!=="mohae-hygiene"||!o.state||!o.state.data)throw 0;
+    S=o.state;save();view="today";render();
+    const v=$("view"),b=document.createElement("div");b.className="banner";b.textContent="✓ 백업을 불러왔어요 ("+String(o.saved||"").slice(0,10)+" 저장본)";v.prepend(b);
+  }catch(e){view="units";render();const m=$("bkmsg");if(m)m.textContent="이 파일은 모해 위생 백업 파일이 아니에요."}};
+
+/* ---------- people dialog ---------- */
+function editPeople(){
+  const d=$("dlg");let list=[...S.people];
+  const draw=()=>{d.innerHTML=`<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="pt"><div class="card">
+    <h4 id="pt">체크하는 사람 (이니셜)</h4><p class="hint">기록표 INITIALES 칸에 들어가는 글자예요. 2~3글자 영문이 좋아요.</p>
+    <div class="list">${list.map((p,i)=>`<div class="it"><input id="pp-${i}" maxlength="4" value="${esc(p)}" aria-label="이니셜 ${i+1}"><button type="button" class="x" data-i="${i}" aria-label="삭제">✕</button></div>`).join("")}</div>
+    <button type="button" class="add" id="padd">+ 사람 추가</button>
+    <div class="act"><button type="button" id="pcancel">취소</button><button type="button" class="pri" id="psave">저장</button></div></div></div>`;
+    d.querySelectorAll(".it input").forEach((inp,i)=>inp.oninput=()=>list[i]=inp.value.toUpperCase());
+    d.querySelectorAll(".x").forEach(b=>b.onclick=()=>{list.splice(+b.dataset.i,1);draw()});
+    $("padd").onclick=()=>{list.push("");draw();d.querySelector(".it:last-child input")?.focus()};
+    $("pcancel").onclick=()=>d.innerHTML="";
+    $("psave").onclick=()=>{const clean=[...new Set(list.map(s=>s.trim().toUpperCase()).filter(Boolean))];if(!clean.length)return;
+      S.people=clean;if(!clean.includes(S.who))S.who=clean[0];save();d.innerHTML="";render()};
+  };draw();
+}
+
+function render(){
+  renderTop();renderBanner();
+  ["today","month","units"].forEach(v=>$("tab-"+v).setAttribute("aria-selected",view===v));
+  if(view==="today")renderToday();else if(view==="month")renderMonth();else renderUnits();
+}
+initState();
+render();
+</script>
+
+</body>
+</html>
